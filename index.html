@@ -16,7 +16,7 @@
     font-family: 'Segoe UI', Arial, sans-serif;
     cursor: crosshair;
   }
-  canvas { display: block; border-radius: 8px; }
+  canvas { display: block; border-radius: 8px; touch-action: none; }
   #ui-overlay {
     position: fixed;
     top: 0; left: 0; right: 0;
@@ -139,6 +139,134 @@
     z-index: 10;
     background: rgba(0,0,0,0.5);
   }
+  /* Mobile mode toggle */
+  .mobile-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+    color: #aaa;
+    font-size: 16px;
+    pointer-events: all;
+    cursor: pointer;
+    user-select: none;
+  }
+  .mobile-toggle input[type="checkbox"] {
+    display: none;
+  }
+  .toggle-track {
+    width: 48px;
+    height: 26px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 13px;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .mobile-toggle input:checked + .toggle-track {
+    background: #4a90d9;
+  }
+  .toggle-track::after {
+    content: '';
+    position: absolute;
+    width: 22px; height: 22px;
+    background: white;
+    border-radius: 50%;
+    top: 2px; left: 2px;
+    transition: transform 0.2s;
+  }
+  .mobile-toggle input:checked + .toggle-track::after {
+    transform: translateX(22px);
+  }
+  /* Mobile controls overlay */
+  #mobile-controls {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    z-index: 15;
+    pointer-events: none;
+  }
+  #mobile-controls.active {
+    display: block;
+  }
+  .joystick-zone {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    width: 150px;
+    height: 150px;
+    pointer-events: all;
+    touch-action: none;
+  }
+  .joystick-base {
+    width: 130px;
+    height: 130px;
+    background: rgba(255,255,255,0.08);
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    position: absolute;
+    bottom: 0; left: 0;
+  }
+  .joystick-stick {
+    width: 54px;
+    height: 54px;
+    background: radial-gradient(circle at 40% 40%, rgba(255,255,255,0.4), rgba(255,255,255,0.15));
+    border: 2px solid rgba(255,255,255,0.35);
+    border-radius: 50%;
+    position: absolute;
+    bottom: 38px; left: 38px;
+    transition: none;
+  }
+  .fire-btn {
+    position: absolute;
+    bottom: 40px;
+    right: 40px;
+    width: 80px;
+    height: 80px;
+    background: radial-gradient(circle at 40% 40%, rgba(255,68,68,0.6), rgba(200,30,30,0.35));
+    border: 3px solid rgba(255,100,100,0.5);
+    border-radius: 50%;
+    pointer-events: all;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.8);
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    user-select: none;
+  }
+  .fire-btn:active {
+    background: radial-gradient(circle at 40% 40%, rgba(255,100,100,0.8), rgba(220,50,50,0.5));
+  }
+  .mobile-action-btn {
+    position: absolute;
+    width: 52px;
+    height: 52px;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid rgba(255,255,255,0.25);
+    border-radius: 50%;
+    pointer-events: all;
+    touch-action: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+    font-weight: bold;
+    user-select: none;
+  }
+  .mobile-action-btn:active {
+    background: rgba(255,255,255,0.25);
+  }
+  #mobile-reload-btn {
+    bottom: 135px;
+    right: 45px;
+  }
+  #mobile-vehicle-btn {
+    bottom: 40px;
+    right: 135px;
+  }
 </style>
 </head>
 <body>
@@ -171,10 +299,15 @@
     <button class="btn diff-btn medium" onclick="startGame('medium')">MEDIUM</button>
     <button class="btn diff-btn hard" onclick="startGame('hard')">HARD</button>
   </div>
-  <div class="controls">
+  <div class="controls" id="controls-text">
     <span>WASD</span> Move &nbsp;|&nbsp; <span>Mouse</span> Aim &nbsp;|&nbsp; <span>Click</span> Shoot<br>
     <span>R</span> Reload &nbsp;|&nbsp; <span>Shift</span> Sprint &nbsp;|&nbsp; <span>E</span> Enter/Exit Vehicle
   </div>
+  <label class="mobile-toggle" id="mobile-toggle-label">
+    <input type="checkbox" id="mobile-mode-toggle" onchange="toggleMobileMode(this.checked)">
+    <div class="toggle-track"></div>
+    Mobile Mode
+  </label>
 </div>
 <div id="win-screen" style="display:none;">
   <h1>VICTORY ROYALE!</h1>
@@ -193,6 +326,17 @@
     <button class="btn diff-btn medium" onclick="startGame('medium')">MEDIUM</button>
     <button class="btn diff-btn hard" onclick="startGame('hard')">HARD</button>
   </div>
+</div>
+
+<div id="mobile-controls">
+  <div class="joystick-zone" id="joystick-zone">
+    <div class="joystick-base" id="joystick-base">
+      <div class="joystick-stick" id="joystick-stick"></div>
+    </div>
+  </div>
+  <div class="fire-btn" id="fire-btn">FIRE</div>
+  <div class="mobile-action-btn" id="mobile-reload-btn">R</div>
+  <div class="mobile-action-btn" id="mobile-vehicle-btn">E</div>
 </div>
 
 <script>
@@ -2617,6 +2761,192 @@ function gameLoop() {
 
   requestAnimationFrame(gameLoop);
 }
+
+// ==================== MOBILE CONTROLS ====================
+let mobileMode = false;
+
+// Auto-detect mobile on page load
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+  document.getElementById('mobile-mode-toggle').checked = true;
+  toggleMobileMode(true);
+}
+
+function toggleMobileMode(enabled) {
+  mobileMode = enabled;
+  const mc = document.getElementById('mobile-controls');
+  const ct = document.getElementById('controls-text');
+  const mm = document.getElementById('minimap');
+  if (enabled) {
+    mc.classList.add('active');
+    ct.innerHTML = '<span>Joystick</span> Move &nbsp;|&nbsp; <span>FIRE</span> Shoot &nbsp;|&nbsp; Auto-aim nearest enemy';
+    mm.style.bottom = '180px'; // move minimap above joystick
+    document.body.style.cursor = 'default';
+  } else {
+    mc.classList.remove('active');
+    ct.innerHTML = '<span>WASD</span> Move &nbsp;|&nbsp; <span>Mouse</span> Aim &nbsp;|&nbsp; <span>Click</span> Shoot<br><span>R</span> Reload &nbsp;|&nbsp; <span>Shift</span> Sprint &nbsp;|&nbsp; <span>E</span> Enter/Exit Vehicle';
+    mm.style.bottom = '16px';
+    document.body.style.cursor = 'crosshair';
+  }
+}
+
+// --- Joystick logic ---
+(function() {
+  const zone = document.getElementById('joystick-zone');
+  const base = document.getElementById('joystick-base');
+  const stick = document.getElementById('joystick-stick');
+  const fireBtn = document.getElementById('fire-btn');
+  const reloadBtn = document.getElementById('mobile-reload-btn');
+  const vehicleBtn = document.getElementById('mobile-vehicle-btn');
+
+  let joystickTouchId = null;
+  let joystickCenterX = 0, joystickCenterY = 0;
+  const JOYSTICK_RADIUS = 50;
+
+  function getJoystickCenter() {
+    const rect = base.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  }
+
+  zone.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    if (joystickTouchId !== null) return;
+    const t = e.changedTouches[0];
+    joystickTouchId = t.identifier;
+    const c = getJoystickCenter();
+    joystickCenterX = c.x;
+    joystickCenterY = c.y;
+    handleJoystickMove(t.clientX, t.clientY);
+  }, { passive: false });
+
+  zone.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const t = e.changedTouches[i];
+      if (t.identifier === joystickTouchId) {
+        handleJoystickMove(t.clientX, t.clientY);
+      }
+    }
+  }, { passive: false });
+
+  zone.addEventListener('touchend', function(e) {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === joystickTouchId) {
+        joystickTouchId = null;
+        resetJoystick();
+      }
+    }
+  });
+  zone.addEventListener('touchcancel', function(e) {
+    joystickTouchId = null;
+    resetJoystick();
+  });
+
+  function handleJoystickMove(tx, ty) {
+    let dx = tx - joystickCenterX;
+    let dy = ty - joystickCenterY;
+    const d = Math.hypot(dx, dy);
+    if (d > JOYSTICK_RADIUS) {
+      dx = (dx / d) * JOYSTICK_RADIUS;
+      dy = (dy / d) * JOYSTICK_RADIUS;
+    }
+    stick.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    // Map joystick to WASD keys
+    const threshold = 0.25;
+    const nx = dx / JOYSTICK_RADIUS;
+    const ny = dy / JOYSTICK_RADIUS;
+
+    if (typeof keys !== 'undefined') {
+      keys['w'] = ny < -threshold;
+      keys['s'] = ny > threshold;
+      keys['a'] = nx < -threshold;
+      keys['d'] = nx > threshold;
+      // Sprint if pushed to edge
+      keys['shift'] = d > JOYSTICK_RADIUS * 0.85;
+    }
+  }
+
+  function resetJoystick() {
+    stick.style.transform = 'translate(0px, 0px)';
+    if (typeof keys !== 'undefined') {
+      keys['w'] = false;
+      keys['s'] = false;
+      keys['a'] = false;
+      keys['d'] = false;
+      keys['shift'] = false;
+    }
+  }
+
+  // --- Fire button ---
+  fireBtn.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    if (typeof mouse !== 'undefined') mouse.down = true;
+  }, { passive: false });
+  fireBtn.addEventListener('touchend', function(e) {
+    e.preventDefault();
+    if (typeof mouse !== 'undefined') mouse.down = false;
+  }, { passive: false });
+  fireBtn.addEventListener('touchcancel', function(e) {
+    if (typeof mouse !== 'undefined') mouse.down = false;
+  });
+
+  // --- Reload button ---
+  reloadBtn.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    if (typeof player !== 'undefined' && player && player.alive && !player.reloading) {
+      player.reloading = true;
+      player.reloadStart = Date.now();
+    }
+  }, { passive: false });
+
+  // --- Vehicle button ---
+  vehicleBtn.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    // Simulate pressing 'e'
+    const evt = new KeyboardEvent('keydown', { key: 'e' });
+    document.dispatchEvent(evt);
+  }, { passive: false });
+})();
+
+// --- Mobile auto-aim: override player.angle to face nearest enemy ---
+const _originalUpdatePlayer = updatePlayer;
+updatePlayer = function() {
+  _originalUpdatePlayer();
+  if (!mobileMode || !player || !player.alive) return;
+
+  // Auto-aim at nearest visible enemy (or boss)
+  let nearestDist = Infinity;
+  let nearestTarget = null;
+
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const d = dist(player, e);
+    if (d < nearestDist && d < 500) {
+      nearestDist = d;
+      nearestTarget = e;
+    }
+  }
+  if (boss && boss.alive) {
+    const d = dist(player, boss);
+    if (d < nearestDist) {
+      nearestTarget = boss;
+    }
+  }
+
+  if (nearestTarget) {
+    player.angle = angle(player, nearestTarget);
+    // Update mouse position to match aim direction for shooting
+    if (typeof camera !== 'undefined') {
+      mouse.x = nearestTarget.x - camera.x;
+      mouse.y = nearestTarget.y - camera.y;
+    }
+  } else {
+    // Aim in movement direction if no target
+    if (player.vx !== 0 || player.vy !== 0) {
+      player.angle = Math.atan2(player.vy, player.vx);
+    }
+  }
+};
 </script>
 </body>
 </html>
