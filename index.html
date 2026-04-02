@@ -216,29 +216,6 @@
     bottom: 38px; left: 38px;
     transition: none;
   }
-  .fire-btn {
-    position: absolute;
-    bottom: 40px;
-    right: 40px;
-    width: 80px;
-    height: 80px;
-    background: radial-gradient(circle at 40% 40%, rgba(255,68,68,0.6), rgba(200,30,30,0.35));
-    border: 3px solid rgba(255,100,100,0.5);
-    border-radius: 50%;
-    pointer-events: all;
-    touch-action: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(255,255,255,0.8);
-    font-size: 13px;
-    font-weight: bold;
-    letter-spacing: 1px;
-    user-select: none;
-  }
-  .fire-btn:active {
-    background: radial-gradient(circle at 40% 40%, rgba(255,100,100,0.8), rgba(220,50,50,0.5));
-  }
   .mobile-action-btn {
     position: absolute;
     width: 52px;
@@ -334,7 +311,6 @@
       <div class="joystick-stick" id="joystick-stick"></div>
     </div>
   </div>
-  <div class="fire-btn" id="fire-btn">FIRE</div>
   <div class="mobile-action-btn" id="mobile-reload-btn">R</div>
   <div class="mobile-action-btn" id="mobile-vehicle-btn">E</div>
 </div>
@@ -2778,7 +2754,7 @@ function toggleMobileMode(enabled) {
   const mm = document.getElementById('minimap');
   if (enabled) {
     mc.classList.add('active');
-    ct.innerHTML = '<span>Joystick</span> Move &nbsp;|&nbsp; <span>FIRE</span> Shoot &nbsp;|&nbsp; Auto-aim nearest enemy';
+    ct.innerHTML = '<span>Joystick</span> Move &nbsp;|&nbsp; <span>Tap</span> anywhere to shoot in that direction';
     mm.style.bottom = '180px'; // move minimap above joystick
     document.body.style.cursor = 'default';
   } else {
@@ -2794,7 +2770,6 @@ function toggleMobileMode(enabled) {
   const zone = document.getElementById('joystick-zone');
   const base = document.getElementById('joystick-base');
   const stick = document.getElementById('joystick-stick');
-  const fireBtn = document.getElementById('fire-btn');
   const reloadBtn = document.getElementById('mobile-reload-btn');
   const vehicleBtn = document.getElementById('mobile-vehicle-btn');
 
@@ -2877,19 +2852,6 @@ function toggleMobileMode(enabled) {
     }
   }
 
-  // --- Fire button ---
-  fireBtn.addEventListener('touchstart', function(e) {
-    e.preventDefault();
-    if (typeof mouse !== 'undefined') mouse.down = true;
-  }, { passive: false });
-  fireBtn.addEventListener('touchend', function(e) {
-    e.preventDefault();
-    if (typeof mouse !== 'undefined') mouse.down = false;
-  }, { passive: false });
-  fireBtn.addEventListener('touchcancel', function(e) {
-    if (typeof mouse !== 'undefined') mouse.down = false;
-  });
-
   // --- Reload button ---
   reloadBtn.addEventListener('touchstart', function(e) {
     e.preventDefault();
@@ -2908,45 +2870,55 @@ function toggleMobileMode(enabled) {
   }, { passive: false });
 })();
 
-// --- Mobile auto-aim: override player.angle to face nearest enemy ---
-const _originalUpdatePlayer = updatePlayer;
-updatePlayer = function() {
-  _originalUpdatePlayer();
-  if (!mobileMode || !player || !player.alive) return;
+// --- Mobile tap-to-shoot: tap anywhere (not on a control) to aim & fire ---
+let mobileShooting = false;
+let mobileShootInterval = null;
 
-  // Auto-aim at nearest visible enemy (or boss)
-  let nearestDist = Infinity;
-  let nearestTarget = null;
+document.addEventListener('touchstart', function(e) {
+  if (!mobileMode || typeof player === 'undefined' || !player || !player.alive || gameState !== 'playing') return;
 
-  for (const e of enemies) {
-    if (!e.alive) continue;
-    const d = dist(player, e);
-    if (d < nearestDist && d < 500) {
-      nearestDist = d;
-      nearestTarget = e;
-    }
-  }
-  if (boss && boss.alive) {
-    const d = dist(player, boss);
-    if (d < nearestDist) {
-      nearestTarget = boss;
-    }
-  }
+  // Ignore touches on UI controls (joystick, buttons, HUD, screens)
+  const t = e.target;
+  if (t.closest('#joystick-zone, #mobile-reload-btn, #mobile-vehicle-btn, #mobile-controls .mobile-action-btn, #start-screen, #win-screen, #lose-screen, #hud, .btn, .diff-btn, .mobile-toggle')) return;
 
-  if (nearestTarget) {
-    player.angle = angle(player, nearestTarget);
-    // Update mouse position to match aim direction for shooting
-    if (typeof camera !== 'undefined') {
-      mouse.x = nearestTarget.x - camera.x;
-      mouse.y = nearestTarget.y - camera.y;
-    }
-  } else {
-    // Aim in movement direction if no target
-    if (player.vx !== 0 || player.vy !== 0) {
-      player.angle = Math.atan2(player.vy, player.vx);
-    }
+  const touch = e.changedTouches[0];
+  aimAtScreenPoint(touch.clientX, touch.clientY);
+
+  // Start continuous fire
+  mouse.down = true;
+  mobileShooting = true;
+}, { passive: true });
+
+document.addEventListener('touchmove', function(e) {
+  if (!mobileMode || !mobileShooting) return;
+  // Update aim as finger drags
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const touch = e.changedTouches[i];
+    aimAtScreenPoint(touch.clientX, touch.clientY);
   }
-};
+}, { passive: true });
+
+document.addEventListener('touchend', function(e) {
+  if (!mobileMode || !mobileShooting) return;
+  mobileShooting = false;
+  mouse.down = false;
+}, { passive: true });
+
+document.addEventListener('touchcancel', function(e) {
+  if (!mobileMode) return;
+  mobileShooting = false;
+  mouse.down = false;
+}, { passive: true });
+
+function aimAtScreenPoint(screenX, screenY) {
+  if (typeof camera === 'undefined' || typeof player === 'undefined') return;
+  // Convert screen tap to world coordinates, then aim there
+  const worldX = screenX + camera.x;
+  const worldY = screenY + camera.y;
+  player.angle = Math.atan2(worldY - player.y, worldX - player.x);
+  mouse.x = screenX;
+  mouse.y = screenY;
+}
 </script>
 </body>
 </html>
