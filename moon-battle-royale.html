@@ -2893,8 +2893,7 @@ function toggleMobileMode(enabled) {
 })();
 
 // --- Mobile tap-to-shoot: tap anywhere (not on a control) to aim & fire ---
-let mobileShooting = false;
-let mobileShootInterval = null;
+let shootTouchId = null;
 
 document.addEventListener('touchstart', function(e) {
   if (!mobileMode || typeof player === 'undefined' || !player || !player.alive || gameState !== 'playing') return;
@@ -2903,33 +2902,43 @@ document.addEventListener('touchstart', function(e) {
   const t = e.target;
   if (t.closest('#joystick-zone, #mobile-reload-btn, #mobile-vehicle-btn, #mobile-map-btn, #mobile-controls .mobile-action-btn, #start-screen, #win-screen, #lose-screen, #hud, .btn, .diff-btn, .mobile-toggle, #minimap')) return;
 
+  // Only track one shoot finger at a time
+  if (shootTouchId !== null) return;
   const touch = e.changedTouches[0];
+  shootTouchId = touch.identifier;
   aimAtScreenPoint(touch.clientX, touch.clientY);
-
-  // Start continuous fire
   mouse.down = true;
-  mobileShooting = true;
 }, { passive: true });
 
 document.addEventListener('touchmove', function(e) {
-  if (!mobileMode || !mobileShooting) return;
-  // Update aim as finger drags
+  if (!mobileMode || shootTouchId === null) return;
+  // Only follow the shoot finger, ignore joystick finger
   for (let i = 0; i < e.changedTouches.length; i++) {
     const touch = e.changedTouches[i];
-    aimAtScreenPoint(touch.clientX, touch.clientY);
+    if (touch.identifier === shootTouchId) {
+      aimAtScreenPoint(touch.clientX, touch.clientY);
+    }
   }
 }, { passive: true });
 
 document.addEventListener('touchend', function(e) {
-  if (!mobileMode || !mobileShooting) return;
-  mobileShooting = false;
-  mouse.down = false;
+  if (!mobileMode || shootTouchId === null) return;
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    if (e.changedTouches[i].identifier === shootTouchId) {
+      shootTouchId = null;
+      mouse.down = false;
+    }
+  }
 }, { passive: true });
 
 document.addEventListener('touchcancel', function(e) {
-  if (!mobileMode) return;
-  mobileShooting = false;
-  mouse.down = false;
+  if (!mobileMode || shootTouchId === null) return;
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    if (e.changedTouches[i].identifier === shootTouchId) {
+      shootTouchId = null;
+      mouse.down = false;
+    }
+  }
 }, { passive: true });
 
 function aimAtScreenPoint(screenX, screenY) {
